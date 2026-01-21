@@ -1,53 +1,100 @@
 using UnityEngine;
+using UnityEngine.InputSystem; // NEW input system
 
+/// <summary>
+/// Simple non-VR movement controller for in-editor testing.
+/// Keyboard: WASD
+/// Mouse: Look
+/// Space: Jump
+/// </summary>
+[RequireComponent(typeof(CharacterController))]
 public class NonVRMovement : MonoBehaviour
 {
-    public float speed = 5.0f;
-    public float lookSpeed = 2.0f;
+    [Header("Movement")]
+    public float speed = 5f;
     public float jumpHeight = 1.5f;
     public float gravity = 9.81f;
 
+    [Header("Look")]
+    public float lookSpeed = 2f;
+    public Transform cameraHolder;
+
     private CharacterController controller;
     private Vector3 velocity;
+    private float verticalLookRotation;
     private bool isGrounded;
-
-    public Transform cameraHolder; // Assign CameraHolder in Inspector
-    private float verticalLookRotation = 0f;
 
     void Start()
     {
         controller = GetComponent<CharacterController>();
-        Cursor.lockState = CursorLockMode.Locked; // Locks mouse to the center of the screen
+
+        // Lock cursor for FPS-style look
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     void Update()
     {
+        // =============================
         // Ground check
+        // =============================
         isGrounded = controller.isGrounded;
-        if (isGrounded && velocity.y < 0)
+        if (isGrounded && velocity.y < 0f)
             velocity.y = -2f;
 
-        // WASD movement
-        float x = Input.GetAxis("Horizontal");
-        float z = Input.GetAxis("Vertical");
-        Vector3 move = transform.right * x + transform.forward * z;
+        // =============================
+        // Movement (WASD)
+        // =============================
+        Vector2 moveInput = Vector2.zero;
+
+        if (Keyboard.current != null)
+        {
+            moveInput.x =
+                (Keyboard.current.dKey.isPressed ? 1 : 0) -
+                (Keyboard.current.aKey.isPressed ? 1 : 0);
+
+            moveInput.y =
+                (Keyboard.current.wKey.isPressed ? 1 : 0) -
+                (Keyboard.current.sKey.isPressed ? 1 : 0);
+        }
+
+        Vector3 move =
+            transform.right * moveInput.x +
+            transform.forward * moveInput.y;
+
         controller.Move(move * speed * Time.deltaTime);
 
-        // Mouse look - horizontal rotation (left/right)
-        float mouseX = Input.GetAxis("Mouse X") * lookSpeed;
-        transform.Rotate(Vector3.up * mouseX);
+        // =============================
+        // Mouse Look
+        // =============================
+        if (Mouse.current != null)
+        {
+            Vector2 mouseDelta = Mouse.current.delta.ReadValue() * lookSpeed * 0.1f;
 
-        // Mouse look - vertical rotation (up/down)
-        float mouseY = Input.GetAxis("Mouse Y") * lookSpeed;
-        verticalLookRotation -= mouseY;
-        verticalLookRotation = Mathf.Clamp(verticalLookRotation, -90f, 90f);
-        cameraHolder.localRotation = Quaternion.Euler(verticalLookRotation, 0f, 0f);
+            // Horizontal rotation (yaw)
+            transform.Rotate(Vector3.up * mouseDelta.x);
 
-        // Jumping
-        if (Input.GetButtonDown("Jump") && isGrounded)
+            // Vertical rotation (pitch)
+            verticalLookRotation -= mouseDelta.y;
+            verticalLookRotation = Mathf.Clamp(verticalLookRotation, -90f, 90f);
+
+            cameraHolder.localRotation =
+                Quaternion.Euler(verticalLookRotation, 0f, 0f);
+        }
+
+        // =============================
+        // Jump
+        // =============================
+        if (Keyboard.current != null &&
+            Keyboard.current.spaceKey.wasPressedThisFrame &&
+            isGrounded)
+        {
             velocity.y = Mathf.Sqrt(jumpHeight * 2f * gravity);
+        }
 
+        // =============================
         // Gravity
+        // =============================
         velocity.y -= gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
     }
