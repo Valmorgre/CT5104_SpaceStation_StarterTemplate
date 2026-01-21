@@ -1,10 +1,10 @@
-#if AR_FOUNDATION_PRESENT
-using UnityEngine.Events;
-using UnityEngine.EventSystems;
+﻿#if AR_FOUNDATION_PRESENT
+using UnityEngine.InputSystem;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
-using UnityEngine.XR.Interaction.Toolkit.Inputs.Readers;
-using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using UnityEngine.XR.Interaction.Toolkit.Inputs;
+using UnityEngine.XR.Interaction.Toolkit.Utilities.Internal;
+using UnityEngine.XR.Interaction.Toolkit.Samples.StarterAssets;
 
 namespace UnityEngine.XR.Interaction.Toolkit.Samples.ARStarterAssets
 {
@@ -19,28 +19,42 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.ARStarterAssets
         public enum SpawnTriggerType
         {
             /// <summary>
-            /// Spawn an object when the interactor activates its select input
-            /// but no selection actually occurs.
+            /// Spawn an object when the <see cref="XRBaseController"/> associated with the interactor activates its selection
+            /// state but no selection actually occurs.
             /// </summary>
             SelectAttempt,
 
             /// <summary>
-            /// Spawn an object when an input is performed.
+            /// Spawn an object when an <see cref="UnityEngine.InputSystem.InputAction"/> is performed.
             /// </summary>
             InputAction,
         }
 
         [SerializeField]
-        [Tooltip("The AR ray interactor that determines where to spawn the object.")]
-        XRRayInteractor m_ARInteractor;
+        [RequireInterface(typeof(IARInteractor))]
+        [Tooltip("The AR Interactor that determines where to spawn the object.")]
+        Object m_ARInteractorObject;
 
         /// <summary>
-        /// The AR ray interactor that determines where to spawn the object.
+        /// The <see cref="IARInteractor"/> that determines where to spawn the object.
         /// </summary>
-        public XRRayInteractor arInteractor
+        public Object arInteractorObject
         {
-            get => m_ARInteractor;
-            set => m_ARInteractor = value;
+            get => m_ARInteractorObject;
+            set => m_ARInteractorObject = value;
+        }
+
+        [SerializeField]
+        [Tooltip("The behavior to use to spawn objects.")]
+        ObjectSpawner m_ObjectSpawner;
+
+        /// <summary>
+        /// The behavior to use to spawn objects.
+        /// </summary>
+        public ObjectSpawner objectSpawner
+        {
+            get => m_ObjectSpawner;
+            set => m_ObjectSpawner = value;
         }
 
         [SerializeField]
@@ -72,75 +86,50 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.ARStarterAssets
         }
 
         [SerializeField]
-        XRInputButtonReader m_SpawnObjectInput = new XRInputButtonReader("Spawn Object");
+        [Tooltip("The action to use to trigger spawn. (Button Control)")]
+        InputActionProperty m_SpawnAction = new(new InputAction(type: InputActionType.Button));
 
         /// <summary>
-        /// The input used to trigger spawn, if <see cref="spawnTriggerType"/> is set to <see cref="SpawnTriggerType.InputAction"/>.
+        /// The Input System action to use to trigger spawn, if <see cref="spawnTriggerType"/> is set to <see cref="SpawnTriggerType.InputAction"/>.
+        /// Must be an action with a button-like interaction where phase equals performed when pressed.
+        /// Typically a <see cref="UnityEngine.InputSystem.Controls.ButtonControl"/> Control or a Value type action with a Press or Sector interaction.
         /// </summary>
-        public XRInputButtonReader spawnObjectInput
+        public InputActionProperty spawnAction
         {
-            get => m_SpawnObjectInput;
-            set => XRInputReaderUtility.SetInputProperty(ref m_SpawnObjectInput, value, this);
+            get => m_SpawnAction;
+            set
+            {
+                if (Application.isPlaying)
+                    m_SpawnAction.DisableDirectAction();
+
+                m_SpawnAction = value;
+
+                if (Application.isPlaying && isActiveAndEnabled)
+                    m_SpawnAction.EnableDirectAction();
+            }
         }
 
-        [SerializeField]
-        [Tooltip("When enabled, spawn will not be triggered if an object is currently selected.")]
-        bool m_BlockSpawnWhenInteractorHasSelection = true;
-
-        /// <summary>
-        /// When enabled, spawn will not be triggered if an object is currently selected.
-        /// </summary>
-        public bool blockSpawnWhenInteractorHasSelection
-        {
-            get => m_BlockSpawnWhenInteractorHasSelection;
-            set => m_BlockSpawnWhenInteractorHasSelection = value;
-        }
-
-        /// <summary>
-        /// Calls the methods in its invocation list when an object is spawned.
-        /// </summary>
-        /// <remarks>
-        /// The first event parameter corresponds to the spawn position in world space
-        /// and the second event parameter corresponds to the vector normal to the surface.
-        /// </remarks>
-        public UnityEvent<Vector3, Vector3> objectSpawnTriggered
-        {
-            get => m_ObjectSpawnTriggered;
-            set => m_ObjectSpawnTriggered = value;
-        }
-
-        [Header("Events")]
-        [SerializeField]
-        [Tooltip("Calls the methods in its invocation list when an object is spawned.")]
-        UnityEvent<Vector3, Vector3> m_ObjectSpawnTriggered = new UnityEvent<Vector3, Vector3>();
-
-        bool m_AttemptSpawn;
+        IARInteractor m_ARInteractor;
+        UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInputInteractor m_ARInteractorAsControllerInteractor;
         bool m_EverHadSelection;
-
-        /// <summary>
-        /// See <see cref="MonoBehaviour"/>.
-        /// </summary>
-        void OnEnable()
-        {
-            m_SpawnObjectInput.EnableDirectActionIfModeUsed();
-        }
-
-        /// <summary>
-        /// See <see cref="MonoBehaviour"/>.
-        /// </summary>
-        void OnDisable()
-        {
-            m_SpawnObjectInput.DisableDirectActionIfModeUsed();
-        }
 
         /// <summary>
         /// See <see cref="MonoBehaviour"/>.
         /// </summary>
         void Start()
         {
-            if (m_ARInteractor == null)
+            if (m_ObjectSpawner == null)
+#if UNITY_2023_1_OR_NEWER
+                m_ObjectSpawner = FindAnyObjectByType<ObjectSpawner>();
+#else
+                m_ObjectSpawner = FindObjectOfType<ObjectSpawner>();
+#endif    
+
+            m_ARInteractor = m_ARInteractorObject as IARInteractor;
+            m_ARInteractorAsControllerInteractor = m_ARInteractorObject as UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInputInteractor;
+            if (m_SpawnTriggerType == SpawnTriggerType.SelectAttempt && m_ARInteractorAsControllerInteractor == null)
             {
-                Debug.LogError("Missing AR Interactor reference, disabling component.", this);
+                Debug.LogError("Can only use SelectAttempt spawn trigger type with XRBaseControllerInteractor.", this);
                 enabled = false;
             }
         }
@@ -148,58 +137,53 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.ARStarterAssets
         /// <summary>
         /// See <see cref="MonoBehaviour"/>.
         /// </summary>
+        void OnEnable()
+        {
+            m_SpawnAction.EnableDirectAction();
+        }
+
+        /// <summary>
+        /// See <see cref="MonoBehaviour"/>.
+        /// </summary>
+        void OnDisable()
+        {
+            m_SpawnAction.DisableDirectAction();
+        }
+
+        /// <summary>
+        /// See <see cref="MonoBehaviour"/>.
+        /// </summary>
         void Update()
         {
-            // Wait a frame after the Spawn Object input is triggered to actually cast against AR planes and spawn
-            // in order to ensure the touchscreen gestures have finished processing to allow the ray pose driver
-            // to update the pose based on the touch position of the gestures.
-            if (m_AttemptSpawn)
-            {
-                m_AttemptSpawn = false;
-
-                // Cancel the spawn if the select was delayed until the frame after the spawn trigger.
-                // This can happen if the select action uses a different input source than the spawn trigger.
-                if (m_ARInteractor.hasSelection)
-                    return;
-
-                // Don't spawn the object if the tap was over screen space UI.
-                var isPointerOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(-1);
-                if (!isPointerOverUI && m_ARInteractor.TryGetCurrentARRaycastHit(out var arRaycastHit))
-                {
-                    if (!(arRaycastHit.trackable is ARPlane arPlane))
-                        return;
-
-                    if (m_RequireHorizontalUpSurface && arPlane.alignment != PlaneAlignment.HorizontalUp)
-                        return;
-
-                    m_ObjectSpawnTriggered.Invoke(arRaycastHit.pose.position, arPlane.normal);
-                }
-
-                return;
-            }
-
-            var selectState = m_ARInteractor.logicalSelectState;
-
-            if (m_BlockSpawnWhenInteractorHasSelection)
-            {
-                if (selectState.wasPerformedThisFrame)
-                    m_EverHadSelection = m_ARInteractor.hasSelection;
-                else if (selectState.active)
-                    m_EverHadSelection |= m_ARInteractor.hasSelection;
-            }
-
-            m_AttemptSpawn = false;
+            var attemptSpawn = false;
             switch (m_SpawnTriggerType)
             {
                 case SpawnTriggerType.SelectAttempt:
-                    if (selectState.wasCompletedThisFrame)
-                        m_AttemptSpawn = !m_ARInteractor.hasSelection && !m_EverHadSelection;
+                    var currentControllerState = m_ARInteractorAsControllerInteractor.xrController.currentControllerState;
+                    if (currentControllerState.selectInteractionState.activatedThisFrame)
+                        m_EverHadSelection = m_ARInteractorAsControllerInteractor.hasSelection;
+                    else if (currentControllerState.selectInteractionState.active)
+                        m_EverHadSelection |= m_ARInteractorAsControllerInteractor.hasSelection;
+                    else if (currentControllerState.selectInteractionState.deactivatedThisFrame)
+                        attemptSpawn = !m_ARInteractorAsControllerInteractor.hasSelection && !m_EverHadSelection;
                     break;
 
                 case SpawnTriggerType.InputAction:
-                    if (m_SpawnObjectInput.ReadWasPerformedThisFrame())
-                        m_AttemptSpawn = !m_ARInteractor.hasSelection && !m_EverHadSelection;
+                    if (m_SpawnAction.action.WasPerformedThisFrame())
+                        attemptSpawn = true;
                     break;
+            }
+
+            if (attemptSpawn && m_ARInteractor.TryGetCurrentARRaycastHit(out var arRaycastHit))
+            {
+                var arPlane = arRaycastHit.trackable as ARPlane;
+                if (arPlane == null)
+                    return;
+
+                if (m_RequireHorizontalUpSurface && arPlane.alignment != PlaneAlignment.HorizontalUp)
+                    return;
+
+                m_ObjectSpawner.TrySpawnObject(arRaycastHit.pose.position, arPlane.normal);
             }
         }
     }
