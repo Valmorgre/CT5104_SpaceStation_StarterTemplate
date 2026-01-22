@@ -1,12 +1,16 @@
+#if AR_FOUNDATION_PRESENT
+using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using UnityEngine.XR.Interaction.Toolkit.Samples.StarterAssets;
+using UnityEngine.XR.Interaction.Toolkit.AR.Inputs;
+using UnityEngine.XR.Interaction.Toolkit.Inputs.Readers;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 namespace UnityEngine.XR.Interaction.Toolkit.Samples.ARStarterAssets
 {
     /// <summary>
     /// Handles dismissing the object menu when clicking out the UI bounds, and showing the
-    /// menu again when the create menu button is clicked after dismissal. Manages object deletion in the AR demo scene, 
+    /// menu again when the create menu button is clicked after dismissal. Manages object deletion in the AR demo scene,
     /// and also handles the toggling between the object creation menu button and the delete button.
     /// </summary>
     public class ARSampleMenuManager : MonoBehaviour
@@ -64,19 +68,6 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.ARStarterAssets
         }
 
         [SerializeField]
-        [Tooltip("The object spawner component in charge of spawning new objects.")]
-        ObjectSpawner m_ObjectSpawner;
-
-        /// <summary>
-        /// The object spawner component in charge of spawning new objects.
-        /// </summary>
-        public ObjectSpawner objectSpawner
-        {
-            get => m_ObjectSpawner;
-            set => m_ObjectSpawner = value;
-        }
-
-        [SerializeField]
         [Tooltip("Button that closes the object creation menu.")]
         Button m_CancelButton;
 
@@ -90,35 +81,50 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.ARStarterAssets
         }
 
         [SerializeField]
-        [Tooltip("The screen space controller associated with the demo scene.")]
-        XRScreenSpaceController m_ScreenSpaceController;
-
-        /// <summary>
-        /// The screen space controller associated with the demo scene.
-        /// </summary>
-        public XRScreenSpaceController screenSpaceController
-        {
-            get => m_ScreenSpaceController;
-            set => m_ScreenSpaceController = value;
-        }
-
-        [SerializeField]
         [Tooltip("The interaction group for the AR demo scene.")]
-        UnityEngine.XR.Interaction.Toolkit.Interactors.XRInteractionGroup m_InteractionGroup;
+        XRInteractionGroup m_InteractionGroup;
 
         /// <summary>
         /// The interaction group for the AR demo scene.
         /// </summary>
-        public UnityEngine.XR.Interaction.Toolkit.Interactors.XRInteractionGroup interactionGroup
+        public XRInteractionGroup interactionGroup
         {
             get => m_InteractionGroup;
             set => m_InteractionGroup = value;
         }
 
+        [SerializeField]
+        XRInputValueReader<Vector2> m_TapStartPositionInput = new XRInputValueReader<Vector2>("Tap Start Position");
+
+        /// <summary>
+        /// Input to use for the screen tap start position.
+        /// </summary>
+        /// <seealso cref="TouchscreenGestureInputController.tapStartPosition"/>
+        public XRInputValueReader<Vector2> tapStartPositionInput
+        {
+            get => m_TapStartPositionInput;
+            set => XRInputReaderUtility.SetInputProperty(ref m_TapStartPositionInput, value, this);
+        }
+
+        /// <summary>
+        /// Calls the methods in its invocation list when the spawned object selection changes.
+        /// </summary>
+        public UnityEvent<int> spawnedObjectSelectionChanged
+        {
+            get => m_SpawnedObjectSelectionChanged;
+            set => m_SpawnedObjectSelectionChanged = value;
+        }
+
+        [Header("Events")]
+        [SerializeField]
+        [Tooltip("Calls the methods in its invocation list when the spawned object selection changes.")]
+        UnityEvent<int> m_SpawnedObjectSelectionChanged = new UnityEvent<int>();
+
         bool m_ShowObjectMenu;
 
         void OnEnable()
         {
+            m_TapStartPositionInput.EnableDirectActionIfModeUsed();
             m_CreateButton.onClick.AddListener(ShowMenu);
             m_CancelButton.onClick.AddListener(HideMenu);
             m_DeleteButton.onClick.AddListener(DeleteFocusedObject);
@@ -126,6 +132,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.ARStarterAssets
 
         void OnDisable()
         {
+            m_TapStartPositionInput.DisableDirectActionIfModeUsed();
             m_ShowObjectMenu = false;
             m_CreateButton.onClick.RemoveListener(ShowMenu);
             m_CancelButton.onClick.RemoveListener(HideMenu);
@@ -144,7 +151,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.ARStarterAssets
                 m_CreateButton.gameObject.SetActive(false);
                 m_DeleteButton.gameObject.SetActive(false);
                 var isPointerOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(-1);
-                if (!isPointerOverUI && m_ScreenSpaceController.tapStartPositionAction.action.WasPerformedThisFrame())
+                if (!isPointerOverUI && m_TapStartPositionInput.TryReadValue(out _))
                 {
                     HideMenu();
                 }
@@ -167,22 +174,7 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.ARStarterAssets
 
         public void SetObjectToSpawn(int objectIndex)
         {
-            if (m_ObjectSpawner == null)
-            {
-                Debug.LogWarning("Menu Manager not configured correctly: no Object Spawner set.", this);
-            }
-            else
-            {
-                if (objectIndex < m_ObjectSpawner.objectPrefabs.Count)
-                {
-                    m_ObjectSpawner.spawnOptionIndex = objectIndex;
-                }
-                else
-                {
-                    Debug.LogWarning("Object Spawner not configured correctly: object index larger than number of Object Prefabs.", this);
-                }
-            }
-
+            m_SpawnedObjectSelectionChanged.Invoke(objectIndex);
             HideMenu();
         }
 
@@ -218,3 +210,4 @@ namespace UnityEngine.XR.Interaction.Toolkit.Samples.ARStarterAssets
         }
     }
 }
+#endif
