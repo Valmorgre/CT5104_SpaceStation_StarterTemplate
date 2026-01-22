@@ -22,6 +22,8 @@ Unity will prompt to install missing packages automatically.
 ---
 
 ## First-Time Setup (Students)
+<img width="1551" height="745" alt="image" src="https://github.com/user-attachments/assets/f8fb1a02-4cba-4e2b-8830-af7efa7f0958" />
+
 
 1. Go to Code > Download zip
 2. Extract to a new project folder
