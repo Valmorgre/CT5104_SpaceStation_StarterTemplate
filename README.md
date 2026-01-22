@@ -1,7 +1,7 @@
 # UoG CT5104 – VR / AR Space Station Template
 
 This repository is the **starter Unity project** for the CT5104 VR/AR module.
-Each student will receive **their own private copy** via GitHub Classroom.
+Each student will receive **their own private copy** via zip download.
 
 ---
 
@@ -23,12 +23,13 @@ Unity will prompt to install missing packages automatically.
 
 ## First-Time Setup (Students)
 
-1. Clone your assigned repository
-2. Open **Unity Hub**
-3. Click **Open → Add project from disk**
-4. Select this folder
-5. Allow Unity to regenerate Library files
-6. Open the main scene when prompted
+1. Go to Code > Download zip
+2. Extract to a new project folder
+3. Open **Unity Hub**
+4. Click **Open → Add project from disk**
+5. Select this folder
+6. Allow Unity to regenerate Library files
+7. Open the main scene when prompted
 
 Do **not** commit the `Library/` folder.
 
